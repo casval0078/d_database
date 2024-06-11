@@ -180,7 +180,6 @@ async function requestCameraAccess() {
                 console.error("位置情報へのアクセスが拒否されました。", error);
                 showCameraPermissionDialog();
             }
-        }
         // 位置情報の許可を求める
         navigator.permissions.query({ name: 'geolocation' })
             .then(permissionStatus => {
