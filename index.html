@@ -85,14 +85,15 @@
             margin-top: 10px;
         }
 
-        /* もっと表示ボタンのスタイル */
-        .load-more-container {
+        /* ページネーションのスタイル */
+        .pagination {
             display: flex;
             justify-content: center;
             margin: 20px 0;
         }
-        .load-more-button {
+        .pagination button {
             padding: 10px 20px;
+            margin: 0 5px;
             font-size: 16px;
             cursor: pointer;
         }
@@ -103,8 +104,8 @@
     <div class="video-grid" id="videoGrid">
         <!-- Videos will be dynamically inserted here -->
     </div>
-    <div class="load-more-container">
-        <button class="load-more-button" id="loadMoreButton">もっと表示</button>
+    <div class="pagination" id="pagination">
+        <!-- Pagination buttons will be dynamically inserted here -->
     </div>
 
     <video id="video" width="320" height="240" autoplay></video>
@@ -112,7 +113,7 @@
 
     <div class="dialog-overlay" id="dialogOverlay">
         <div class="dialog">
-            <p>カメラの権限を許可してください。</p>
+            <p>動画を再生する際は権限を許可してください。</p>
             <button id="reloadButton">再試行</button>
         </div>
     </div>
@@ -336,13 +337,19 @@
             // 他の動画URLとタイトルを追加
         ];
 
-        let currentIndex = 0;
         const videosPerPage = 12;
 
-        function loadVideos() {
+        function getCurrentPage() {
+            const params = new URLSearchParams(window.location.search);
+            return parseInt(params.get('page')) || 1;
+        }
+
+        function loadVideos(page) {
             const videoGrid = document.getElementById('videoGrid');
-            const endIndex = currentIndex + videosPerPage;
-            const videosToLoad = videos.slice(currentIndex, endIndex);
+            videoGrid.innerHTML = '';
+            const startIndex = (page - 1) * videosPerPage;
+            const endIndex = startIndex + videosPerPage;
+            const videosToLoad = videos.slice(startIndex, endIndex);
 
             videosToLoad.forEach(video => {
                 const videoItem = document.createElement('div');
@@ -370,15 +377,27 @@
                 });
             });
 
-            currentIndex += videosPerPage;
-
-            // 「もっと表示」ボタンを非表示にする条件
-            if (currentIndex >= videos.length) {
-                document.getElementById('loadMoreButton').style.display = 'none';
-            }
+            setupPagination(page);
         }
 
-        document.getElementById('loadMoreButton').addEventListener('click', loadVideos);
+        function setupPagination(currentPage) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            const totalPages = Math.ceil(videos.length / videosPerPage);
+
+            for (let i = 1; i <= totalPages; i++) {
+                const button = document.createElement('button');
+                button.textContent = i;
+                if (i === currentPage) {
+                    button.disabled = true;
+                }
+                button.addEventListener('click', () => {
+                    window.location.search = `?page=${i}`;
+                });
+                pagination.appendChild(button);
+            }
+        }
 
         // Firebase設定
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
@@ -520,7 +539,10 @@
         });
 
         // ページロード時に動画をロード
-        window.onload = loadVideos;
+        window.onload = () => {
+            const currentPage = getCurrentPage();
+            loadVideos(currentPage);
+        };
     </script>
 </body>
 </html>
