@@ -251,8 +251,6 @@
         }
 
 
-        import { getData, setData, updateImageHead, GPSHelper } from 'https://cdn.jsdelivr.net/npm/exif-js';
-
         // 画像をFirebase Storageにアップロード
         function uploadImage(dataURL) {
             const storageRef = ref(storage, `images/${Date.now()}.jpg`);
@@ -269,57 +267,42 @@
 
         // アップロードされた画像にExif情報を追加する関数
         function addExifData(snapshot) {
-            // 画像のURLを取得
             snapshot.ref.getDownloadURL().then(url => {
-                // 位置情報を取得
                 navigator.geolocation.getCurrentPosition(position => {
-                    // 現在の緯度と経度を取得
                     const latitude = position.coords.latitude;
                     const longitude = position.coords.longitude;
 
-                    // Exif情報を作成
+                    const latitudeDMS = convertToDMS(latitude);
+                    const longitudeDMS = convertToDMS(longitude);
+
                     const exifData = {
                         GPSLatitudeRef: latitude < 0 ? 'S' : 'N',
-                        GPSLatitude: GPSHelper.degToDmsRational(Math.abs(latitude)),
+                        GPSLatitude: [latitudeDMS.degrees, latitudeDMS.minutes, latitudeDMS.seconds],
                         GPSLongitudeRef: longitude < 0 ? 'W' : 'E',
-                        GPSLongitude: GPSHelper.degToDmsRational(Math.abs(longitude))
+                        GPSLongitude: [longitudeDMS.degrees, longitudeDMS.minutes, longitudeDMS.seconds]
                     };
 
-                    // 画像にExif情報をセット
                     setData(url, exifData);
-
-                    // Exif情報を保存
                     updateImageHead(url);
                 });
             });
         }
 
-	function convertToDMS(degrees) {
-    const absoluteDegrees = Math.abs(degrees);
-    const degreesInt = Math.floor(absoluteDegrees);
-    const minutesFloat = (absoluteDegrees - degreesInt) * 60;
-    const minutesInt = Math.floor(minutesFloat);
-    const secondsFloat = (minutesFloat - minutesInt) * 60;
-    const secondsFixed = secondsFloat.toFixed(2); // 小数点以下2桁に固定
+        // 度から度分秒に変換する関数
+        function convertToDMS(degrees) {
+            const absoluteDegrees = Math.abs(degrees);
+            const degreesInt = Math.floor(absoluteDegrees);
+            const minutesFloat = (absoluteDegrees - degreesInt) * 60;
+            const minutesInt = Math.floor(minutesFloat);
+            const secondsFloat = (minutesFloat - minutesInt) * 60;
+            const secondsFixed = secondsFloat.toFixed(2);
 
-    return {
-        degrees: degreesInt,
-        minutes: minutesInt,
-        seconds: secondsFixed
-    };
-}
-
-// 緯度と経度を度から度分秒に変換
-const latitudeDMS = convertToDMS(latitude);
-const longitudeDMS = convertToDMS(longitude);
-
-// Exif情報を作成
-const exifData = {
-    GPSLatitudeRef: latitude < 0 ? 'S' : 'N',
-    GPSLatitude: [latitudeDMS.degrees, latitudeDMS.minutes, latitudeDMS.seconds],
-    GPSLongitudeRef: longitude < 0 ? 'W' : 'E',
-    GPSLongitude: [longitudeDMS.degrees, longitudeDMS.minutes, longitudeDMS.seconds]
-};
+            return {
+                degrees: degreesInt,
+                minutes: minutesInt,
+                seconds: secondsFixed
+            };
+        }
 
         // カメラ権限ダイアログを表示
         function showCameraPermissionDialog() {
