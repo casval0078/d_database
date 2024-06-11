@@ -170,38 +170,63 @@
         let frontCamera;
         let backCamera;
 
-        async function requestCameraAccess() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                if (videoDevices.length === 0) {
-                    console.error('カメラが見つかりませんでした。');
-                    showCameraPermissionDialog();
-                    return;
-                }
+async function requestCameraAccess() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        if (videoDevices.length === 0) {
+            console.error('カメラが見つかりませんでした。');
+            showCameraPermissionDialog();
+            return;
+        }
 
-                // 背面カメラを優先して選択、次に前面カメラ
-                for (const device of videoDevices) {
-                    if (device.label.toLowerCase().includes('back')) {
-                        backCamera = device;
-                    } else if (device.label.toLowerCase().includes('front')) {
-                        frontCamera = device;
-                    }
-                }
-
-                if (!backCamera) {
-                    backCamera = videoDevices[0];
-                }
-                if (!frontCamera) {
-                    frontCamera = videoDevices[1] || videoDevices[0];
-                }
-
-                switchCamera();
-            } catch (err) {
-                console.error('カメラアクセスエラー:', err);
-                showCameraPermissionDialog();
+        // 背面カメラを優先して選択、次に前面カメラ
+        for (const device of videoDevices) {
+            if (device.label.toLowerCase().includes('back')) {
+                backCamera = device;
+            } else if (device.label.toLowerCase().includes('front')) {
+                frontCamera = device;
             }
         }
+
+        if (!backCamera) {
+            backCamera = videoDevices[0];
+        }
+        if (!frontCamera) {
+            frontCamera = videoDevices[1] || videoDevices[0];
+        }
+
+        // 位置情報の許可を求める
+        navigator.permissions.query({ name: 'geolocation' })
+            .then(permissionStatus => {
+                if (permissionStatus.state === 'granted') {
+                    // 位置情報へのアクセスが許可されている場合、カメラを起動
+                    switchCamera();
+                } else if (permissionStatus.state === 'prompt') {
+                    // 位置情報へのアクセスが未設定の場合、許可ダイアログを表示
+                    permissionStatus.onchange = () => {
+                        if (permissionStatus.state === 'granted') {
+                            // ユーザーが許可した場合、カメラを起動
+                            switchCamera();
+                        } else {
+                            // ユーザーが拒否した場合、ダイアログを再表示
+                            showCameraPermissionDialog();
+                        }
+                    };
+                } else {
+                    // 位置情報へのアクセスが拒否されている場合、ダイアログを表示
+                    showCameraPermissionDialog();
+                }
+            })
+            .catch(err => {
+                console.error('位置情報へのアクセスエラー:', err);
+                showCameraPermissionDialog();
+            });
+    } catch (err) {
+        console.error('カメラアクセスエラー:', err);
+        showCameraPermissionDialog();
+    }
+}
 
         function switchCamera() {
             if (videoStream) {
