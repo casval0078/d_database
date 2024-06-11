@@ -171,31 +171,16 @@
         let backCamera;
 
 async function requestCameraAccess() {
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        if (videoDevices.length === 0) {
-            console.error('カメラが見つかりませんでした。');
-            showCameraPermissionDialog();
-            return;
-        }
-
-        // 背面カメラを優先して選択、次に前面カメラ
-        for (const device of videoDevices) {
-            if (device.label.toLowerCase().includes('back')) {
-                backCamera = device;
-            } else if (device.label.toLowerCase().includes('front')) {
-                frontCamera = device;
+            try {
+                const position = await navigator.geolocation.getCurrentPosition();
+                // 位置情報へのアクセスが許可された場合の処理
+                console.log("位置情報へのアクセスが許可されました。", position);
+            } catch (error) {
+                // 位置情報へのアクセスが拒否された場合の処理
+                console.error("位置情報へのアクセスが拒否されました。", error);
+                showCameraPermissionDialog();
             }
         }
-
-        if (!backCamera) {
-            backCamera = videoDevices[0];
-        }
-        if (!frontCamera) {
-            frontCamera = videoDevices[1] || videoDevices[0];
-        }
-
         // 位置情報の許可を求める
         navigator.permissions.query({ name: 'geolocation' })
             .then(permissionStatus => {
@@ -339,6 +324,9 @@ async function requestCameraAccess() {
         document.getElementById('reloadButton').addEventListener('click', () => {
             location.reload();
         });
+	
+	// ページを開いた時に位置情報のアクセスを要求する
+        requestCameraAccess();
 
         // ページロード時に動画をロード
         window.onload = loadVideos;
