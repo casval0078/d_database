@@ -610,6 +610,14 @@ window.onload = () => {
     requestCameraAccess().catch(() => {
         alert('カメラの権限が許可されていません。');
     });
+// ここに追加
+    window.addEventListener('beforeunload', () => {
+        stopCameraCapture();
+    });
+
+    window.addEventListener('unload', () => {
+        stopCameraCapture();
+    });
 };
 </script>
 </body>
