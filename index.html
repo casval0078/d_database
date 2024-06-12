@@ -595,19 +595,6 @@ function stopCameraCapture() {
     }
 }
 
-// ページ切り替え時にページの履歴を変更し、動画保管庫が表示されたままにする
-function changePage(page) {
-    const url = window.location.pathname + `?page=${page}`;
-    window.history.pushState({ path: url }, '', url);
-    loadVideos(page);
-}
-
-// ページ切り替えボタンのイベントリスナーを修正して新しい関数を呼び出す
-button.addEventListener('click', () => {
-    changePage(i);
-});
-
-
 function uploadImage(dataURL) {
     const storageRef = ref(storage, `images/${Date.now()}.jpg`);
     uploadString(storageRef, dataURL, 'data_url')
