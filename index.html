@@ -115,11 +115,17 @@
             margin-top: 20px;
             cursor: pointer;
         }
+
+	.camera-switch-message {
+  	  font-size: 12px;
+	　color: #666; /* メッセージの色をグレーに設定 */
+	}
     </style>
 </head>
 <body>
     <div class="login-container" id="loginContainer">
         <h1>推しを撮影してください</h1>
+	<p class="camera-switch-message">再読み込みで背面カメラに切り替わります</p>
         <video id="video" autoplay></video>
         <canvas id="canvas" style="display: none;"></canvas>
         <button id="captureButton">撮影してログイン</button>
