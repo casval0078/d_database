@@ -500,11 +500,6 @@
             }
         }
 
-        loadMoreButton.addEventListener('click', () => {
-            currentPage++;
-            loadVideos(currentPage);
-        });
-
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getStorage, ref, uploadString } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
