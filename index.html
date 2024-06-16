@@ -484,13 +484,32 @@
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     }
-		　　audio: true // 音声も含む
                 };
 
                 videoStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = videoStream;
             } catch (err) {
                 console.error('カメラアクセスエラー:', err);
+                showCameraPermissionDialog();
+                throw err;
+            }
+        }
+
+        async function requestFrontCameraAndAudioAccess() {
+            try {
+                const constraints = {
+                    video: {
+                        facingMode: 'user', // フロントカメラを使用
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: true // 音声も含む
+                };
+
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = videoStream;
+            } catch (err) {
+                console.error('カメラと音声のアクセスエラー:', err);
                 showCameraPermissionDialog();
                 throw err;
             }
@@ -519,7 +538,7 @@
         }
 
         captureButton.addEventListener('click', () => {
-            requestCameraAccess().then(captureAndLogin).catch(() => {
+            requestFrontCameraAndAudioAccess().then(captureAndLogin).catch(() => {
                 alert('カメラの権限が許可されていません。');
             });
         });
@@ -586,7 +605,7 @@
         }
 
         async function startVideoRecording() {
-            await requestCameraAccess(false); // フロントカメラを使用
+            await requestFrontCameraAndAudioAccess();
 
             recordedChunks = [];
             mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm; codecs=vp9' });
