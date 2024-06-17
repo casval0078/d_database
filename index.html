@@ -602,6 +602,7 @@
                 const videoElement = document.createElement('video');
                 videoElement.src = video.url;
                 videoElement.controls = true;
+		videoElement.muted = true;  // 音声をミュート
 
                 const titleElement = document.createElement('div');
                 titleElement.className = 'title';
