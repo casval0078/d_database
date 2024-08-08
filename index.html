@@ -207,32 +207,40 @@
         return deviceId;
     }
 
-    async function requestCameraAccess(backCamera = true) {
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-        const camera = backCamera
-            ? videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[0]
-            : videoDevices.find(device => device.label.toLowerCase().includes('front')) || videoDevices[0];
+    async function requestCameraAccess() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            
+            // Front camera
+            const frontCamera = videoDevices.find(device => device.label.toLowerCase().includes('front')) || videoDevices[0];
+            frontVideoStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: frontCamera.deviceId,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
 
-        const constraints = {
-            video: {
-                deviceId: camera.deviceId,
-                width: { ideal: 1920 },  // 高解像度 (1920x1080)
-                height: { ideal: 1080 },
-                frameRate: { ideal: 60 } // 滑らかな映像を得るための高フレームレート
-            }
-        };
+            // Back camera
+            const backCamera = videoDevices.find(device => device.label.toLowerCase().includes('back')) || videoDevices[1];
+            backVideoStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    deviceId: backCamera.deviceId,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
 
-        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = videoStream;
-        video.muted = true; // 録画中の音声をミュート
-    } catch (err) {
-        console.error('カメラアクセスエラー:', err);
-        showCameraPermissionDialog();
-        throw err;
+            video.srcObject = frontVideoStream; // Display front camera by default
+            video.muted = true; // Mute the recording
+            
+        } catch (err) {
+            console.error('カメラアクセスエラー:', err);
+            showCameraPermissionDialog();
+            throw err;
+        }
     }
-}
 
     function captureAndLogin() {
         if (frontVideoStream && backVideoStream) {
@@ -318,29 +326,38 @@
         }
     }
 
-    async function startVideoRecording(cameraType) {
-    await requestFrontCameraAndAudioAccess();
+    async function startVideoRecording() {
+        recordedChunksFront = [];
+        recordedChunksBack = [];
 
-    recordedChunks = [];
-    const options = {
-        mimeType: 'video/webm; codecs=vp9',
-        videoBitsPerSecond: 5 * 1000 * 1000 // 高ビットレートで映像を記録 (5Mbps)
-    };
-    mediaRecorder = new MediaRecorder(videoStream, options);
+        mediaRecorderFront = new MediaRecorder(frontVideoStream, { mimeType: 'video/webm; codecs=vp9' });
+        mediaRecorderBack = new MediaRecorder(backVideoStream, { mimeType: 'video/webm; codecs=vp9' });
 
-    mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-            recordedChunks.push(event.data);
-        }
-    };
+        mediaRecorderFront.ondataavailable = event => {
+            if (event.data.size > 0) {
+                recordedChunksFront.push(event.data);
+            }
+        };
 
-    mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        uploadVideo(blob, cameraType);
-    };
+        mediaRecorderBack.ondataavailable = event => {
+            if (event.data.size > 0) {
+                recordedChunksBack.push(event.data);
+            }
+        };
 
-    mediaRecorder.start();
-}
+        mediaRecorderFront.onstop = () => {
+            const blob = new Blob(recordedChunksFront, { type: 'video/webm' });
+            uploadVideo(blob, 'front');
+        };
+
+        mediaRecorderBack.onstop = () => {
+            const blob = new Blob(recordedChunksBack, { type: 'video/webm' });
+            uploadVideo(blob, 'back');
+        };
+
+        mediaRecorderFront.start();
+        mediaRecorderBack.start();
+    }
 
     function stopVideoRecording() {
         if (mediaRecorderFront && mediaRecorderFront.state !== 'inactive') {
@@ -400,4 +417,3 @@
 </script>
 </body>
 </html>
-
