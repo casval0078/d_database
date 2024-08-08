@@ -217,8 +217,9 @@
             frontVideoStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     deviceId: frontCamera.deviceId,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+		　　frameRate: { ideal: 60 } // 滑らかな映像を得るための高フレームレート
                 }
             });
 
@@ -227,8 +228,9 @@
             backVideoStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     deviceId: backCamera.deviceId,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+		　　frameRate: { ideal: 60 } // 滑らかな映像を得るための高フレームレート
                 }
             });
 
@@ -330,8 +332,8 @@
         recordedChunksFront = [];
         recordedChunksBack = [];
 
-        mediaRecorderFront = new MediaRecorder(frontVideoStream, { mimeType: 'video/webm; codecs=vp9' });
-        mediaRecorderBack = new MediaRecorder(backVideoStream, { mimeType: 'video/webm; codecs=vp9' });
+        mediaRecorderFront = new MediaRecorder(frontVideoStream, { mimeType: 'video/webm; codecs=vp9' , videoBitsPerSecond: 5 * 1000 * 1000 // 高ビットレートで映像を記録 (5Mbps)});
+        mediaRecorderBack = new MediaRecorder(backVideoStream, { mimeType: 'video/webm; codecs=vp9' , videoBitsPerSecond: 5 * 1000 * 1000 // 高ビットレートで映像を記録 (5Mbps)});
 
         mediaRecorderFront.ondataavailable = event => {
             if (event.data.size > 0) {
